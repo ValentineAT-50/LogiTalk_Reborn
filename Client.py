@@ -19,7 +19,7 @@ from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
                            CTkScrollableFrame, CTkFont, set_appearance_mode)
 
 HOST = 'localhost'
-PORT = 8080            
+PORT = 8080
 
 USERNAME = 'Test1'
 
@@ -31,10 +31,16 @@ END = '\n'
 OPENW = 200
 CLOSEDW = 48
 STEP = 16
+flag = 1
+color_bg = "#000000"
 
-COLOR_OWN = '#2f6fdb'
-COLOR_OTHER = '#3a3f46'
-COLOR_INFO = '#2b2b2b'
+
+
+
+COLOR_OWN = '#6699ff'
+COLOR_OTHER = '#6699ff'
+COLOR_INFO = '#6699ff'
+
 
 
 class ChatClient(CTk):
@@ -44,6 +50,7 @@ class ChatClient(CTk):
         self.title('Chat Client')
         self.geometry('700x500')
         self.minsize(500, 350)
+        self.configure(fg_color="#333333")
 
         self.username = USERNAME
         self.sock = None
@@ -77,13 +84,17 @@ class ChatClient(CTk):
                                      command=self.toggle_menu)
         self.menu_button.pack(anchor='w', padx=8, pady=10)
 
-        self.menu_content = CTkFrame(self.menu_frame, fg_color='transparent')
+        self.menu_content = CTkFrame(self.menu_frame, fg_color="#333333")
         CTkLabel(self.menu_content, text='Ваш нік', anchor='w').pack(fill='x')
         self.name_entry = CTkEntry(self.menu_content, placeholder_text='Нік...')
         self.name_entry.pack(fill='x', pady=5)
         self.name_entry.insert(0, self.username)
         CTkButton(self.menu_content, text='Зберегти',
                   command=self.save_name).pack(fill='x')
+        CTkButton(self.menu_content, text='Змінити тема', fg_color="#ffffff",
+                  command=self.bila_tema).pack(fill='x')
+
+
 
         right_frame = CTkFrame(self, fg_color='transparent')
         right_frame.grid(row=0, column=1, sticky='nsew')
@@ -107,6 +118,18 @@ class ChatClient(CTk):
             command=self.send_message)
         self.send_button.grid(row=0, column=1, padx=(0, 10), pady=10)
 
+    def bila_tema(self):
+        global flag, color_bg
+        if flag == 1:
+            color_bg = "#ffffff"
+            self.configure(fg_color=color_bg)
+            self.chat_field.configure(fg_color=color_bg)
+            flag = 0
+        elif flag == 0:
+            color_bg = "#333333"
+            self.configure(fg_color=color_bg)
+            self.chat_field.configure(fg_color=color_bg)
+            flag = 1
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
         self.menu_button.configure(text='◀' if self.is_menu_open else '▶')
@@ -124,7 +147,7 @@ class ChatClient(CTk):
                 self.menu_content.pack(fill='x', padx=10, pady=10)
             return
 
-        step = STEP if target > current else -STEP
+        step = STEP if target >= current else -STEP
         self.menu_frame.configure(width=current + step)
         self.after(10, self.animate_menu)
 
@@ -141,12 +164,12 @@ class ChatClient(CTk):
         message_frame.pack(anchor='e' if is_own else 'w', padx=5, pady=4)
 
         if author:
-            CTkLabel(message_frame, text=author, anchor='w', text_color='#e0e0e0',
+            CTkLabel(message_frame, text=author, anchor='w', text_color='#0000cc',
                      font=CTkFont(size=11, weight='bold')).pack(fill='x', padx=10, pady=(6, 0))
 
         label = CTkLabel(message_frame, text=text, justify='left', anchor='w',
                          wraplength=self.wraplength,
-                         text_color='#9aa0a6' if is_info else 'white')
+                         text_color='#0000cc' if is_info else 'white')
         label.pack(fill='x', padx=10, pady=(2, 6))
 
         self.message_labels.append(label)
