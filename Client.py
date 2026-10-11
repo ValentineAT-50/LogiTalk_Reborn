@@ -1,15 +1,5 @@
-"""
-Одне повідомлення - один рядок, частини розділені символом "@".
-
-    Клієнт -> сервер:
-        NAME@нік задати або змінити нік
-        TEXT@текст надіслати повідомлення
-
-    Сервер -> клієнту:
-        TEXT@нік@текст чиєсь повідомлення
-        INFO@текст службове повідомлення
-"""
-
+import colorsys
+import random
 import time
 from queue import Empty, Queue
 from socket import AF_INET, SOCK_STREAM, socket
@@ -23,6 +13,8 @@ from customtkinter import (
     CTkFrame,
     CTkLabel,
     CTkScrollableFrame,
+    CTkToplevel,
+    get_appearance_mode,
     set_appearance_mode,
 )
 
@@ -44,7 +36,7 @@ COLOR_OWN = '#2f6fdb'
 COLOR_OTHER = '#3a3f46'
 COLOR_INFO = '#2b2b2b'
 
-# --- НАЛАШТУВАННЯ ОБМЕЖЕНЬ (ОГРАНИЧИТЕЛИ) ---
+# --- НАЛАШТУВАННЯ ОБМЕЖЕНЬ ---
 MAX_MSG_LEN = 200  # Максимальна довжина повідомлення (в символах)
 MAX_NAME_LEN = 20  # Максимальна довжина ніка
 COOLDOWN_SEC = 1.0  # Затримка між повідомленнями у секундах (захист від спаму)
@@ -67,6 +59,13 @@ class ChatClient(CTk):
         # Змінна для відстеження часу останнього повідомлення (для кулдауну)
         self.last_msg_time = 0
 
+        # Змінні для керування райдужною темою
+        self.rainbow_active = False
+        self.rainbow_hue = 0.0
+
+        # Баланс для казіка
+        self.casino_balance = 500
+
         self.handlers = {
             'TEXT': self.on_text,
             'INFO': self.on_info,
@@ -82,7 +81,7 @@ class ChatClient(CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Бокове меню
+        # Бокове меню (всі налаштування та розваги тепер тут)
         self.is_menu_open = False
         self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
@@ -92,15 +91,36 @@ class ChatClient(CTk):
                                      command=self.toggle_menu)
         self.menu_button.pack(anchor='w', padx=8, pady=10)
 
-        self.menu_content = CTkFrame(self.menu_frame, fg_color='transparent')
-        CTkLabel(self.menu_content, text='Ваш нік', anchor='w').pack(fill='x')
+        # Використовуємо ScrollableFrame для меню, щоб все гарантовано помістилося
+        self.menu_content = CTkScrollableFrame(self.menu_frame, fg_color='transparent')
 
+        # --- Секція: Профіль ---
+        CTkLabel(self.menu_content, text='Ваш нік', anchor='w', font=CTkFont(weight='bold')).pack(fill='x')
         self.name_entry = CTkEntry(self.menu_content, placeholder_text='Нік...')
         self.name_entry.pack(fill='x', pady=5)
         self.name_entry.insert(0, self.username)
 
-        CTkButton(self.menu_content, text='Зберегти',
-                  command=self.save_name).pack(fill='x')
+        CTkButton(self.menu_content, text='Зберегти нік',
+                  command=self.save_name).pack(fill='x', pady=(0, 15))
+
+        # --- Секція: Теми оформлення ---
+        CTkLabel(self.menu_content, text='Теми оформлення', anchor='w', font=CTkFont(weight='bold')).pack(fill='x')
+
+        self.theme_button = CTkButton(self.menu_content, text='Світла / Темна',
+                                      command=self.toggle_theme)
+        self.theme_button.pack(fill='x', pady=5)
+
+        self.rainbow_button = CTkButton(self.menu_content, text='🌈 Райдужна тема',
+                                        fg_color='#ff4b5c', hover_color='#ff2a40',
+                                        command=self.toggle_rainbow_theme)
+        self.rainbow_button.pack(fill='x', pady=(5, 15))
+
+        # --- Секція: Розваги (Казино) ---
+        CTkLabel(self.menu_content, text='Розваги', anchor='w', font=CTkFont(weight='bold')).pack(fill='x')
+        self.casino_btn = CTkButton(self.menu_content, text='🎰 Міні-казино',
+                                    fg_color='#f39c12', hover_color='#d68910',
+                                    command=self.open_casino)
+        self.casino_btn.pack(fill='x', pady=5)
 
         # Основна область чату
         right_frame = CTkFrame(self, fg_color='transparent')
@@ -108,6 +128,7 @@ class ChatClient(CTk):
         right_frame.grid_columnconfigure(0, weight=1)
         right_frame.grid_rowconfigure(0, weight=1)
 
+        # Секція чату та вводу
         self.chat_field = CTkScrollableFrame(right_frame, fg_color='transparent')
         self.chat_field.grid(row=0, column=0, sticky='nsew', padx=10, pady=(10, 0))
         self.chat_field.bind('<Configure>', self.on_chat_resize, add='+')
@@ -144,183 +165,295 @@ class ChatClient(CTk):
         )
         self.send_button.grid(row=0, column=1, padx=(0, 10), pady=(10, 2))
 
-    def check_msg_length(self, event=None):
-        """Ограничитель: перевірка та візуальне сповіщення про ліміт символів."""
-        text = self.message_entry.get()
-        length = len(text)
+    def toggle_menu(self):
+        if self.is_menu_open:
+            self.menu_content.pack_forget()
+            self.menu_button.configure(text='▶')
+            self.animate_menu(OPENW, CLOSEDW, -STEP)
+        else:
+            self.animate_menu(CLOSEDW, OPENW, STEP)
 
+    def animate_menu(self, current, target, step):
+        current += step
+        self.menu_frame.configure(width=current)
+        if (step > 0 and current < target) or (step < 0 and current > target):
+            self.after(10, lambda: self.animate_menu(current, target, step))
+        else:
+            self.menu_frame.configure(width=target)
+            if step > 0:
+                self.menu_content.pack(fill='both', expand=True, padx=5, pady=5)
+                self.menu_button.configure(text='◀')
+                self.is_menu_open = True
+            else:
+                self.is_menu_open = False
+
+    def toggle_theme(self):
+        if self.rainbow_active:
+            self.toggle_rainbow_theme()
+
+        current_mode = get_appearance_mode()
+        if current_mode == 'Dark':
+            set_appearance_mode('Light')
+        else:
+            set_appearance_mode('Dark')
+
+    def toggle_rainbow_theme(self):
+        self.rainbow_active = not self.rainbow_active
+        if self.rainbow_active:
+            self.rainbow_button.configure(text='🛑 Вимкнути райдугу')
+            set_appearance_mode('Light')
+            self.animate_rainbow_theme()
+        else:
+            self.rainbow_button.configure(text='🌈 Райдужна тема')
+            set_appearance_mode('Dark')
+            self.configure(fg_color=None)
+            self.menu_frame.configure(fg_color=None)
+
+    def animate_rainbow_theme(self):
+        if not self.rainbow_active:
+            return
+
+        r_bg, g_bg, b_bg = colorsys.hsv_to_rgb(self.rainbow_hue, 0.2, 0.97)
+        r_btn, g_btn, b_btn = colorsys.hsv_to_rgb(self.rainbow_hue, 0.6, 0.9)
+
+        bg_hex = f'#{int(r_bg * 255):02x}{int(g_bg * 255):02x}{int(b_bg * 255):02x}'
+        btn_hex = f'#{int(r_btn * 255):02x}{int(g_btn * 255):02x}{int(b_btn * 255):02x}'
+
+        try:
+            self.configure(fg_color=bg_hex)
+            self.menu_frame.configure(fg_color=bg_hex)
+            self.send_button.configure(fg_color=btn_hex, hover_color=btn_hex)
+        except Exception:
+            pass
+
+        self.rainbow_hue = (self.rainbow_hue + 0.005) % 1.0
+        self.after(100, self.animate_rainbow_theme)
+
+    def check_msg_length(self, event=None):
+        text = self.message_entry.get()
+        if len(text) > MAX_MSG_LEN:
+            self.message_entry.delete(MAX_MSG_LEN, 'end')
+            text = self.message_entry.get()
+
+        length = len(text)
         self.char_counter.configure(text=f'{length} / {MAX_MSG_LEN}')
 
         if length > MAX_MSG_LEN:
-            self.char_counter.configure(text_color='#ff5555')  # Червоний колір при перевищенні
+            self.char_counter.configure(text_color='#ff5555')
         else:
             self.char_counter.configure(text_color='gray')
 
-    def toggle_menu(self):
-        self.is_menu_open = not self.is_menu_open
-        self.menu_button.configure(text='◀' if self.is_menu_open else '▶')
-        if not self.is_menu_open:
-            self.menu_content.pack_forget()
-        self.animate_menu()
-
-    def animate_menu(self):
-        target = OPENW if self.is_menu_open else CLOSEDW
-        current = self.menu_frame.winfo_width()
-
-        if abs(current - target) <= STEP:
-            self.menu_frame.configure(width=target)
-            if self.is_menu_open:
-                self.menu_content.pack(fill='x', padx=10, pady=10)
+    def save_name(self):
+        new_name = self.name_entry.get().strip()
+        if not new_name:
             return
-
-        step = STEP if target > current else -STEP
-        self.menu_frame.configure(width=current + step)
-        self.after(10, self.animate_menu)
-
-    def add_message(self, text, author=None, is_own=False, is_info=False):
-        if is_info:
-            color = COLOR_INFO
-        elif is_own:
-            color = COLOR_OWN
-        else:
-            color = COLOR_OTHER
-
-        message_frame = CTkFrame(self.chat_field, fg_color=color, corner_radius=10)
-        message_frame.pack(anchor='e' if is_own else 'w', padx=5, pady=4)
-
-        if author:
-            CTkLabel(message_frame, text=author, anchor='w', text_color='#e0e0e0',
-                     font=CTkFont(size=11, weight='bold')).pack(fill='x', padx=10, pady=(6, 0))
-
-        label = CTkLabel(message_frame, text=text, justify='left', anchor='w',
-                         wraplength=self.wraplength,
-                         text_color='#9aa0a6' if is_info else 'white')
-        label.pack(fill='x', padx=10, pady=(2, 6))
-
-        self.message_labels.append(label)
-        self.after(20, self.scroll_down)
+        if len(new_name) > MAX_NAME_LEN:
+            new_name = new_name[:MAX_NAME_LEN]
+        self.username = new_name
+        self.add_system_message(f"Нік змінено на: {self.username}")
 
     def on_chat_resize(self, event):
-        self.wraplength = max(int(event.width * 0.7), 160)
-        for label in self.message_labels:
-            label.configure(wraplength=self.wraplength)
+        self.wraplength = max(200, event.width - 100)
+        for lbl in self.message_labels:
+            lbl.configure(wraplength=self.wraplength)
 
-    def scroll_down(self):
-        self.update_idletasks()
-        self.chat_field._parent_canvas.yview_moveto(1.0)
+    def add_system_message(self, text):
+        lbl = CTkLabel(self.chat_field, text=text, text_color='gray', font=CTkFont(size=11))
+        lbl.pack(pady=5)
+        self.message_labels.append(lbl)
 
-    def connect(self):
-        try:
-            self.sock = socket(AF_INET, SOCK_STREAM)
-            self.sock.connect((HOST, PORT))
-        except OSError as error:
-            self.sock = None
-            self.add_message(f"Не вдалося підключитися до сервера: {error}", is_info=True)
-            return
+    def on_text(self, sender, text):
+        align = 'w' if sender != self.username else 'e'
+        color = COLOR_OWN if sender == self.username else COLOR_OTHER
+        msg_text = f"{sender}:\n{text}"
 
-        Thread(target=self.receive_loop, daemon=True).start()
-        self.send_line('NAME', self.username)
+        lbl = CTkLabel(
+            self.chat_field,
+            text=msg_text,
+            fg_color=color,
+            corner_radius=10,
+            padx=10,
+            pady=8,
+            anchor=align,
+            justify='left',
+            wraplength=self.wraplength
+        )
+        lbl.pack(anchor=align, pady=4, padx=5)
+        self.message_labels.append(lbl)
 
-    def send_line(self, message_type, *parts):
-        if not self.sock:
-            self.add_message('Немає зʼєднання із сервером', is_info=True)
-            return
-        line = SEPAR.join((message_type,) + parts) + END
-        try:
-            self.sock.sendall(line.encode(ENC))
-        except OSError:
-            self.sock = None
-            self.add_message('Зʼєднання із сервером втрачено', is_info=True)
-
-    def receive_loop(self):
-        buffer = ''
-        while True:
-            try:
-                chunk = self.sock.recv(BUFF)
-            except OSError:
-                break
-            if not chunk:
-                break
-            buffer += chunk.decode(ENC, errors='ignore')
-            while END in buffer:
-                line, buffer = buffer.split(END, 1)
-                self.inbox.put(line.strip())
-        self.inbox.put(f"INFO{SEPAR}Зʼєднання із сервером втрачено")
-
-    def process_inbox(self):
-        while True:
-            try:
-                line = self.inbox.get_nowait()
-            except Empty:
-                break
-            self.handle_line(line)
-        self.after(50, self.process_inbox)
-
-    def handle_line(self, line):
-        if not line:
-            return
-        parts = line.split(SEPAR, 2)
-        handler = self.handlers.get(parts[0])
-        if handler is None:
-            self.add_message(f"Невідоме повідомлення: {line}", is_info=True)
-            return
-        handler(parts)
-
-    def on_text(self, parts):
-        if len(parts) < 3:
-            return
-        author, text = parts[1], parts[2]
-        self.add_message(text, author=author, is_own=(author == self.username))
-
-    def on_info(self, parts):
-        if len(parts) < 2:
-            return
-        self.add_message(parts[1], is_info=True)
+    def on_info(self, text):
+        self.add_system_message(text)
 
     def send_message(self):
+        if not self.sock:
+            return
+
+        current_time = time.time()
+        if current_time - self.last_msg_time < COOLDOWN_SEC:
+            return
+
         text = self.message_entry.get().strip()
         if not text:
             return
 
-        # --- ОГРАНИЧИТЕЛЬ 1: Перевірка довжини ---
         if len(text) > MAX_MSG_LEN:
-            self.add_message(f"Помилка: Повідомлення перевищує ліміт у {MAX_MSG_LEN} символів!", is_info=True)
-            return
+            text = text[:MAX_MSG_LEN]
 
-        # --- ОГРАНИЧИТЕЛЬ 2: Перевірка кулдауну (захист від спаму) ---
-        now = time.time()
-        if now - self.last_msg_time < COOLDOWN_SEC:
-            self.add_message(f"Зачекайте {COOLDOWN_SEC} сек. перед наступним повідомленням!", is_info=True)
-            return
+        packet = f"TEXT{SEPAR}{self.username}{SEPAR}{text}{END}"
+        try:
+            self.sock.sendall(packet.encode(ENC))
+            self.message_entry.delete(0, 'end')
+            self.char_counter.configure(text=f'0 / {MAX_MSG_LEN}')
+            self.last_msg_time = current_time
+        except Exception:
+            self.add_system_message("Помилка відправки повідомлення.")
 
-        self.last_msg_time = now
-        self.message_entry.delete(0, 'end')
-        self.check_msg_length()  # Скинути лічильник символів
-        self.send_line('TEXT', text)
+    def open_casino(self):
+        casino_win = CTkToplevel(self)
+        casino_win.title('🎰 Міні-Казино')
+        casino_win.geometry('320x380')
+        casino_win.resizable(False, False)
+        casino_win.grab_set()
 
-    def save_name(self):
-        new_name = self.name_entry.get().replace(SEPAR, '').strip()
-        if not new_name or new_name == self.username:
-            return
+        symbols = ['🍒', '🍋', '🔔', '⭐', '        ', '🥭']
 
-        # --- ОГРАНИЧИТЕЛЬ 3: Перевірка довжини ніка ---
-        if len(new_name) > MAX_NAME_LEN:
-            self.add_message(f"Помилка: Нік не може бути довшим за {MAX_NAME_LEN} символів!", is_info=True)
-            return
+        lbl_balance = CTkLabel(casino_win, text=f'Баланс: {self.casino_balance} 🪙',
+                               font=CTkFont(size=16, weight='bold'))
+        lbl_balance.pack(pady=15)
 
-        self.username = new_name
-        self.title(f"Chat Client — {new_name}")
-        self.send_line('NAME', new_name)
+        slots_frame = CTkFrame(casino_win, fg_color='transparent')
+        slots_frame.pack(pady=10)
+
+        slot1 = CTkLabel(slots_frame, text='🍒', font=CTkFont(size=36), width=60, height=60, fg_color='#2b2b2b',
+                         corner_radius=8)
+        slot1.grid(row=0, column=0, padx=5)
+        slot2 = CTkLabel(slots_frame, text='7️⃣', font=CTkFont(size=36), width=60, height=60, fg_color='#2b2b2b',
+                         corner_radius=8)
+        slot2.grid(row=0, column=1, padx=5)
+        slot3 = CTkLabel(slots_frame, text='💎', font=CTkFont(size=36), width=60, height=60, fg_color='#2b2b2b',
+                         corner_radius=8)
+        slot3.grid(row=0, column=2, padx=5)
+
+        bet_frame = CTkFrame(casino_win, fg_color='transparent')
+        bet_frame.pack(pady=10)
+
+        CTkLabel(bet_frame, text='Ставка:').pack(side='left', padx=5)
+        entry_bet = CTkEntry(bet_frame, width=80)
+        entry_bet.pack(side='left', padx=5)
+        entry_bet.insert(0, '10')
+
+        lbl_result = CTkLabel(casino_win, text='Зробіть ставку та крутіть!', font=CTkFont(size=12), text_color='gray')
+        lbl_result.pack(pady=5)
+
+        def spin():
+            try:
+                bet = int(entry_bet.get())
+            except ValueError:
+                lbl_result.configure(text='Введіть числове значення ставки!', text_color='#ff5555')
+                return
+
+            if bet <= 0:
+                lbl_result.configure(text='Ставка має бути більше 0!', text_color='#ff5555')
+                return
+
+            if bet > self.casino_balance:
+                lbl_result.configure(text='Недостатньо коштів на балансі!', text_color='#ff5555')
+                return
+
+            self.casino_balance -= bet
+
+            res1 = random.choice(symbols)
+            res2 = random.choice(symbols)
+            res3 = random.choice(symbols)
+
+            slot1.configure(text=res1)
+            slot2.configure(text=res2)
+            slot3.configure(text=res3)
+
+            if res1 == res2 == res3:
+                win_amount = bet * 10
+                self.casino_balance += win_amount
+                lbl_result.configure(text=f'Джекпот! Ви виграли {win_amount} 🪙!', text_color='#2ecc71')
+            elif res1 == res2 or res2 == res3 or res1 == res3:
+                win_amount = bet * 2
+                self.casino_balance += win_amount
+                lbl_result.configure(text=f'Виграш! Ви отримали {win_amount} 🪙!', text_color='#3498db')
+            else:
+                lbl_result.configure(text='На жаль, програш. Спробуйте ще!', text_color='#e74c3c')
+
+            lbl_balance.configure(text=f'Баланс: {self.casino_balance} 🪙')
+
+        btn_spin = CTkButton(casino_win, text='🎲 КРУТИТИ', fg_color='#27ae60', hover_color='#219653', command=spin)
+        btn_spin.pack(pady=10)
+
+        def share_to_chat():
+            if not self.sock:
+                lbl_result.configure(text='Немає підключення до чату!', text_color='#ff5555')
+                return
+
+            chat_text = f"🎰 [Казино] Баланс гравця: {self.casino_balance} 🪙 (Слоти крутнулися успішно!)"
+            packet = f"TEXT{SEPAR}{self.username}{SEPAR}{chat_text}{END}"
+            try:
+                self.sock.sendall(packet.encode(ENC))
+                lbl_result.configure(text='Результат надіслано в чат!', text_color='#2ecc71')
+            except Exception:
+                lbl_result.configure(text='Помилка відправки в чат.', text_color='#ff5555')
+
+        btn_share = CTkButton(casino_win, text='💬 Надіслати в чат', fg_color='#2980b9', hover_color='#2471a3',
+                              command=share_to_chat)
+        btn_share.pack(pady=2)
+
+    def connect(self):
+        def worker():
+            try:
+                self.sock = socket(AF_INET, SOCK_STREAM)
+                self.sock.connect((HOST, PORT))
+                self.add_system_message("Підключено до сервера!")
+
+                buffer = ""
+                while True:
+                    data = self.sock.recv(BUFF)
+                    if not data:
+                        break
+                    buffer += data.decode(ENC)
+                    while END in buffer:
+                        packet, buffer = buffer.split(END, 1)
+                        self.inbox.put(packet)
+            except Exception:
+                self.add_system_message("Не вдалося підключитися до сервера.")
+            finally:
+                if self.sock:
+                    self.sock.close()
+                    self.sock = None
+
+        Thread(target=worker, daemon=True).start()
+
+    def process_inbox(self):
+        try:
+            while True:
+                packet = self.inbox.get_nowait()
+                parts = packet.split(SEPAR, 2)
+                cmd = parts[0]
+
+                if cmd in self.handlers:
+                    if cmd == 'TEXT' and len(parts) >= 3:
+                        self.handlers[cmd](parts[1], parts[2])
+                    elif cmd == 'INFO' and len(parts) >= 2:
+                        self.handlers[cmd](parts[1])
+        except Empty:
+            pass
+        finally:
+            self.after(100, self.process_inbox)
 
     def on_close(self):
         if self.sock:
             try:
                 self.sock.close()
-            except OSError:
+            except Exception:
                 pass
         self.destroy()
 
 
 if __name__ == '__main__':
-    win = ChatClient()
-    win.mainloop()
+    app = ChatClient()
+    app.mainloop()
