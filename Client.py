@@ -10,13 +10,13 @@
         INFO@текст службове повідомлення
 
 """
-
+from PIL import Image
 from queue import Queue, Empty
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
-                           CTkScrollableFrame, CTkFont, set_appearance_mode)
+                           CTkScrollableFrame, CTkFont, set_appearance_mode, CTkImage)
 
 HOST = 'localhost'
 PORT = 8080            
@@ -59,6 +59,11 @@ class ChatClient(CTk):
 
         self.create_widgets()
         self.protocol('WM_DELETE_WINDOW', self.on_close)
+        self.photo = CTkImage(
+            light_image=Image.open('940_be_d75b9bcb7b90d8db4b9eb3199230.jpg'),
+            dark_image=Image.open('940_be_d75b9bcb7b90d8db4b9eb3199230.jpg'),
+            size=(200, 105)
+        )
 
         self.process_inbox()        # перевірка черги
         self.after(100, self.connect)
@@ -107,6 +112,8 @@ class ChatClient(CTk):
             command=self.send_message)
         self.send_button.grid(row=0, column=1, padx=(0, 10), pady=10)
 
+
+
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
         self.menu_button.configure(text='◀' if self.is_menu_open else '▶')
@@ -151,6 +158,14 @@ class ChatClient(CTk):
 
         self.message_labels.append(label)
         self.after(20, self.scroll_down)
+
+        img_label = CTkLabel(
+            message_frame,
+            text="",
+            image=self.photo
+        )
+        img_label.pack(padx=10, pady=5)
+
 
     def on_chat_resize(self, event):
         self.wraplength = max(int(event.width * 0.7), 160)
