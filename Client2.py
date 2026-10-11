@@ -63,6 +63,8 @@ class ChatClient(CTk):
             'TEXT': self.on_text,
             'INFO': self.on_info,
         }
+        self.menu_animation_id = None
+        self.menu_animation_generation = 0
 
         self.create_widgets()
         self.protocol('WM_DELETE_WINDOW', self.on_close)
@@ -76,22 +78,47 @@ class ChatClient(CTk):
         self.grid_rowconfigure(0, weight=1)
 
         self.is_menu_open = False
-        self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
-        self.menu_frame.grid(row=0, column=0, sticky='ns')
-        self.menu_frame.pack_propagate(False)
 
-        self.menu_button = CTkButton(self.menu_frame, text='▶', width=32,
-                                     command=self.toggle_menu)
+        self.menu_frame = CTkFrame(
+            self,
+            width=CLOSEDW,
+            corner_radius=0
+        )
+        self.menu_frame.grid(row=0, column=0, sticky='ns')
+
+        # ВАЖЛИВО: menu_frame знаходиться через grid
+        self.menu_frame.grid_propagate(False)
+
+        self.menu_button = CTkButton(
+            self.menu_frame,
+            text='▶',
+            width=32,
+            command=self.toggle_menu
+        )
         self.menu_button.pack(anchor='w', padx=8, pady=10)
 
-        self.menu_content = CTkFrame(self.menu_frame, fg_color="#333333")
-        CTkLabel(self.menu_content, text='Ваш нік', anchor='w').pack(fill='x')
-        self.name_entry = CTkEntry(self.menu_content, placeholder_text='Нік...')
+        self.menu_content = CTkFrame(
+            self.menu_frame,
+            width=OPENW - 20,
+            fg_color="#333333"
+        )
+        self.menu_content.pack_propagate(False)
+
+        CTkLabel(
+            self.menu_content,
+            text='Ваш нік',
+            anchor='w'
+        ).pack(fill='x')
+
+        self.name_entry = CTkEntry(
+            self.menu_content,
+            placeholder_text='Нік...'
+        )
         self.name_entry.pack(fill='x', pady=5)
         self.name_entry.insert(0, self.username)
         CTkButton(self.menu_content, text='Зберегти',
                   command=self.save_name).pack(fill='x')
-        CTkButton(self.menu_content, text='Змінити тема', fg_color="#ffffff",
+        CTkButton(self.menu_content, text='Змінити тему', fg_color="#0C215A",
                   command=self.bila_tema).pack(fill='x')
 
 
@@ -130,27 +157,78 @@ class ChatClient(CTk):
             self.configure(fg_color=color_bg)
             self.chat_field.configure(fg_color=color_bg)
             flag = 1
+
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
-        self.menu_button.configure(text='◀' if self.is_menu_open else '▶')
+
+        # Кожне натискання створює нове покоління анімації.
+        # Старі callback-и автоматично стають недійсними.
+        self.menu_animation_generation += 1
+        generation = self.menu_animation_generation
+
+        print("\n========== TOGGLE ==========")
+        print("is_menu_open:", self.is_menu_open)
+        print("generation:", generation)
+        print("width:", self.menu_frame.winfo_width())
+
+        self.menu_button.configure(
+            text='◀' if self.is_menu_open else '▶'
+        )
+
         if not self.is_menu_open:
             self.menu_content.pack_forget()
-        self.animate_menu()
 
-    def animate_menu(self):
+        self.animate_menu(generation)
+
+    def animate_menu(self, generation):
+        # Цей callback вже застарів
+        if generation != self.menu_animation_generation:
+            print(
+                "OLD CALLBACK IGNORED:",
+                generation,
+                "current generation:",
+                self.menu_animation_generation
+            )
+            return
+
         target = OPENW if self.is_menu_open else CLOSEDW
         current = self.menu_frame.winfo_width()
 
-        if abs(current - target) <= STEP:
+        print(
+            "ANIMATE:",
+            "generation =", generation,
+            "| open =", self.is_menu_open,
+            "| current =", current,
+            "| target =", target
+        )
+
+        if current == target:
+            print(">>> TARGET REACHED")
+
             self.menu_frame.configure(width=target)
+
             if self.is_menu_open:
-                self.menu_content.pack(fill='x', padx=10, pady=10)
+                self.menu_content.pack(
+                    fill='x',
+                    padx=10,
+                    pady=10
+                )
+
             return
 
-        step = STEP if target >= current else -STEP
-        self.menu_frame.configure(width=current + step)
-        self.after(10, self.animate_menu)
+        if current < target:
+            new_width = min(current + STEP, target)
+        else:
+            new_width = max(current - STEP, target)
 
+        print("    new_width =", new_width)
+
+        self.menu_frame.configure(width=new_width)
+
+        self.after(
+            10,
+            lambda: self.animate_menu(generation)
+        )
 
     def add_message(self, text, author=None, is_own=False, is_info=False):
         if is_info:
