@@ -315,6 +315,7 @@ class ChatClient(CTk):
         casino_win.resizable(False, False)
         casino_win.grab_set()
 
+
         symbols = ['🍒', '🍋', '🔔', '⭐', '        ', '🥭']
 
         lbl_balance = CTkLabel(casino_win, text=f'Баланс: {self.casino_balance} 🪙',
