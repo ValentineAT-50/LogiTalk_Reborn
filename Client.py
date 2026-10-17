@@ -69,6 +69,7 @@ class ChatClient(CTk):
         self.grid_rowconfigure(0, weight=1)
 
         self.is_menu_open = False
+        self.menu_width = CLOSEDW
         self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
         self.menu_frame.pack_propagate(False)
@@ -116,16 +117,17 @@ class ChatClient(CTk):
 
     def animate_menu(self):
         target = OPENW if self.is_menu_open else CLOSEDW
-        current = self.menu_frame.winfo_width()
 
-        if abs(current - target) <= STEP:
+        if abs(self.menu_width - target) <= STEP:
+            self.menu_width = target
             self.menu_frame.configure(width=target)
             if self.is_menu_open:
                 self.menu_content.pack(fill='x', padx=10, pady=10)
             return
 
-        step = STEP if target > current else -STEP
-        self.menu_frame.configure(width=current + step)
+        step = STEP if target > self.menu_width else -STEP
+        self.menu_width += step
+        self.menu_frame.configure(width=self.menu_width)
         self.after(10, self.animate_menu)
 
 
