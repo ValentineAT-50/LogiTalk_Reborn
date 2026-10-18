@@ -14,12 +14,13 @@ from PIL import Image
 from queue import Queue, Empty
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
+from tkinter import filedialog
 
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
                            CTkScrollableFrame, CTkFont, set_appearance_mode, CTkImage)
 
 HOST = 'localhost'
-PORT = 8080            
+PORT = 8080
 
 USERNAME = 'Test1'
 
@@ -47,8 +48,8 @@ class ChatClient(CTk):
 
         self.username = USERNAME
         self.sock = None
-        self.inbox = Queue()        # Черга яка відправляє все повідомлення
-        self.message_labels = []    # Список щоб міняти перенос тексту при зміні розміру вікна
+        self.inbox = Queue()  # Черга яка відправляє все повідомлення
+        self.message_labels = []  # Список щоб міняти перенос тексту при зміні розміру вікна
         self.wraplength = 400
 
         # Повідомлення, які клієнт може прийняти
@@ -57,17 +58,21 @@ class ChatClient(CTk):
             'INFO': self.on_info,
         }
 
+        self.bg_image_path = None  # Шлях до поточного фонового зображення
+        self.bg_ctk_image = None  # Об'єкт CTkImage для фону
+
         self.create_widgets()
         self.protocol('WM_DELETE_WINDOW', self.on_close)
+
+        # Приклад фонової фотографії, яка була у вас
         self.photo = CTkImage(
             light_image=Image.open('940_be_d75b9bcb7b90d8db4b9eb3199230.jpg'),
             dark_image=Image.open('940_be_d75b9bcb7b90d8db4b9eb3199230.jpg'),
             size=(200, 105)
         )
 
-        self.process_inbox()        # перевірка черги
+        self.process_inbox()  # перевірка черги
         self.after(100, self.connect)
-
 
     def create_widgets(self):
         self.grid_columnconfigure(1, weight=1)
@@ -83,17 +88,29 @@ class ChatClient(CTk):
         self.menu_button.pack(anchor='w', padx=8, pady=10)
 
         self.menu_content = CTkFrame(self.menu_frame, fg_color='transparent')
+
+        # Налаштування ніка
         CTkLabel(self.menu_content, text='Ваш нік', anchor='w').pack(fill='x')
         self.name_entry = CTkEntry(self.menu_content, placeholder_text='Нік...')
         self.name_entry.pack(fill='x', pady=5)
         self.name_entry.insert(0, self.username)
         CTkButton(self.menu_content, text='Зберегти',
-                  command=self.save_name).pack(fill='x')
+                  command=self.save_name).pack(fill='x', pady=(0, 15))
+
+        # ---- Додана кнопка вибору фону ----
+        CTkLabel(self.menu_content, text='Фон чату', anchor='w').pack(fill='x')
+        CTkButton(self.menu_content, text='Обрати фото',
+                  command=self.change_background).pack(fill='x', pady=5)
+        # ------------------------------------
 
         right_frame = CTkFrame(self, fg_color='transparent')
         right_frame.grid(row=0, column=1, sticky='nsew')
         right_frame.grid_columnconfigure(0, weight=1)
         right_frame.grid_rowconfigure(0, weight=1)
+
+        # Віджет для фонового зображення чату
+        self.bg_label = CTkLabel(right_frame, text="")
+        self.bg_label.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.chat_field = CTkScrollableFrame(right_frame, fg_color='transparent')
         self.chat_field.grid(row=0, column=0, sticky='nsew', padx=10, pady=(10, 0))
@@ -104,15 +121,42 @@ class ChatClient(CTk):
         bottom_frame.grid_columnconfigure(0, weight=1)
 
         self.message_entry = CTkEntry(bottom_frame, height=40,
-            placeholder_text='Введіть повідомлення:')
+                                      placeholder_text='Введіть повідомлення:')
         self.message_entry.grid(row=0, column=0, sticky='ew', padx=(10, 6), pady=10)
         self.message_entry.bind('<Return>', lambda event: self.send_message())
 
         self.send_button = CTkButton(bottom_frame, text='>', width=50, height=40,
-            command=self.send_message)
+                                     command=self.send_message)
         self.send_button.grid(row=0, column=1, padx=(0, 10), pady=10)
 
+    def change_background(self):
+        """Відкриває діалогове вікно для вибору зображення та встановлює його на фоні"""
+        file_path = filedialog.askopenfilename(
+            title="Оберіть зображення для фону",
+            filetypes=[("Image files", "*.jpg *.jpeg *.png *.webp *.bmp")]
+        )
+        if not file_path:
+            return
 
+        self.bg_image_path = file_path
+        self.update_background_image()
+
+    def update_background_image(self):
+        if not self.bg_image_path:
+            return
+
+        # Отримуємо поточні розміри області чату для масштабування фону
+        width = self.winfo_width() - (OPENW if self.is_menu_open else CLOSEDW)
+        height = self.winfo_height()
+        if width < 100: width = 500
+        if height < 100: height = 350
+
+        try:
+            pil_img = Image.open(self.bg_image_path)
+            self.bg_ctk_image = CTkImage(light_image=pil_img, dark_image=pil_img, size=(width, height))
+            self.bg_label.configure(image=self.bg_ctk_image)
+        except Exception as e:
+            self.add_message(f"Не вдалося завантажити фонове зображення: {e}", is_info=True)
 
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
@@ -129,12 +173,12 @@ class ChatClient(CTk):
             self.menu_frame.configure(width=target)
             if self.is_menu_open:
                 self.menu_content.pack(fill='x', padx=10, pady=10)
+            self.update_background_image()  # Оновлюємо фон після завершення анімації меню
             return
 
         step = STEP if target > current else -STEP
         self.menu_frame.configure(width=current + step)
         self.after(10, self.animate_menu)
-
 
     def add_message(self, text, author=None, is_own=False, is_info=False):
         if is_info:
@@ -166,16 +210,17 @@ class ChatClient(CTk):
         )
         img_label.pack(padx=10, pady=5)
 
-
     def on_chat_resize(self, event):
         self.wraplength = max(int(event.width * 0.7), 160)
         for label in self.message_labels:
             label.configure(wraplength=self.wraplength)
 
+        # Динамічно оновлюємо розмір фону при зміні розміру вікна
+        self.update_background_image()
+
     def scroll_down(self):
         self.update_idletasks()
         self.chat_field._parent_canvas.yview_moveto(1.0)
-
 
     def connect(self):
         try:
@@ -190,7 +235,6 @@ class ChatClient(CTk):
         self.send_line('NAME', self.username)
 
     def send_line(self, message_type, *parts):
-        # Збирання рядка до купи ТИП@частина1@частина2
         if not self.sock:
             self.add_message('Немає зʼєднання із сервером', is_info=True)
             return
@@ -202,7 +246,6 @@ class ChatClient(CTk):
             self.add_message('Зʼєднання із сервером втрачено', is_info=True)
 
     def receive_loop(self):
-        # Потік який передає текст в чергу, бо іноді не все встигає обробитись перед виводом
         buffer = ''
         while True:
             try:
@@ -218,7 +261,6 @@ class ChatClient(CTk):
         self.inbox.put(f"INFO{SEPAR}Зʼєднання із сервером втрачено")
 
     def process_inbox(self):
-        # Виводить все що накопилось у черзі
         while True:
             try:
                 line = self.inbox.get_nowait()
@@ -227,11 +269,9 @@ class ChatClient(CTk):
             self.handle_line(line)
         self.after(50, self.process_inbox)
 
-
     def handle_line(self, line):
         if not line:
             return
-        # maxsplit=2: сам текст може містити "@" бо розділ буде лише через пробіл + @
         parts = line.split(SEPAR, 2)
         handler = self.handlers.get(parts[0])
         if handler is None:
@@ -250,13 +290,11 @@ class ChatClient(CTk):
             return
         self.add_message(parts[1], is_info=True)
 
-
     def send_message(self):
         text = self.message_entry.get().strip()
         if not text:
             return
         self.message_entry.delete(0, 'end')
-        # Своє повідомлення не виводить, сервер повертає його всім,
         self.send_line('TEXT', text)
 
     def save_name(self):
@@ -264,7 +302,7 @@ class ChatClient(CTk):
         if not new_name or new_name == self.username:
             return
         self.username = new_name
-        self.title(f"Chat Client — {new_name}")
+        self.title(f"телеграм — {new_name}")
         self.send_line('NAME', new_name)
 
     def on_close(self):
@@ -273,7 +311,7 @@ class ChatClient(CTk):
                 self.sock.close()
             except OSError:
                 pass
-        self.destroy()
+            self.destroy()
 
 
 if __name__ == '__main__':
