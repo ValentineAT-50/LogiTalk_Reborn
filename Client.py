@@ -8,8 +8,8 @@ from threading import Thread
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFont, CTkFrame, CTkLabel,
                            CTkScrollableFrame, CTkToplevel, get_appearance_mode, set_appearance_mode)
 
-HOST = 'localhost'
-PORT = 8080
+HOST = '2.tcp.eu.ngrok.io'
+PORT = 16493
 
 USERNAME = 'Test1'
 
