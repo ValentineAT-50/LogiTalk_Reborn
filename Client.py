@@ -12,6 +12,7 @@
 """
 
 from queue import Queue, Empty
+import random
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 
@@ -171,21 +172,34 @@ class ChatClient(CTk):
         self.chat_field.grid(row=0, column=0, sticky='nsew', padx=10, pady=(10, 0))
         self.chat_field.bind('<Configure>', self.on_chat_resize, add='+')
 
-        knopka_frame = CTkFrame(self, fg_color='white', height=20)
-        knopka_frame.grid(row=0, column=1, sticky='ew', padx=30)
-
         bottom_frame = CTkFrame(right_frame, fg_color='transparent')
         bottom_frame.grid(row=1, column=0, sticky='ew')
         bottom_frame.grid_columnconfigure(0, weight=1)
 
+        # T9: три підказки над полем введення
+        self.t9_frame = CTkFrame(bottom_frame, fg_color='transparent')
+        self.t9_frame.grid(row=0, column=0, columnspan=2, sticky='ew',
+                           padx=10, pady=(4, 0))
+        self.t9_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        self.t9_buttons = []
+        for i in range(3):
+            button = CTkButton(
+                self.t9_frame, text='', height=28,
+                command=lambda index=i: self.choose_t9_word(index)
+            )
+            button.grid(row=0, column=i, sticky='ew', padx=3)
+            button.grid_remove()
+            self.t9_buttons.append(button)
+
         self.message_entry = CTkEntry(bottom_frame, height=40,
             placeholder_text='Введіть повідомлення:')
-        self.message_entry.grid(row=0, column=0, sticky='ew', padx=(10, 6), pady=10)
+        self.message_entry.grid(row=1, column=0, sticky='ew', padx=(10, 6), pady=10)
         self.message_entry.bind('<Return>', lambda event: self.send_message())
+        self.message_entry.bind('<KeyRelease>', self.update_t9_suggestions)
 
         self.send_button = CTkButton(bottom_frame, text='>', width=50, height=40,
             command=self.send_message)
-        self.send_button.grid(row=0, column=1, padx=(0, 10), pady=10)
+        self.send_button.grid(row=1, column=1, padx=(0, 10), pady=10)
 
     def bila_tema(self):
         global flag, color_bg
@@ -335,11 +349,52 @@ class ChatClient(CTk):
 
 
 
+    def update_t9_suggestions(self, event=None):
+        # Після пробілу починаємо пошук для наступного слова.
+        current_text = self.message_entry.get()
+        prefix = current_text.split()[-1] if current_text and not current_text.endswith(' ') else ''
+
+        matches = []
+        if prefix:
+            matches = [word for word in t_nine
+                       if word.lower().startswith(prefix.lower())]
+            # Випадкові слова без повторів; якщо збігів менше трьох,
+            # показуємо всі доступні.
+            matches = random.sample(matches, min(3, len(matches)))
+
+        for index, button in enumerate(self.t9_buttons):
+            if index < len(matches):
+                button.configure(text=matches[index], state='normal')
+                button.grid()
+            else:
+                button.configure(text='')
+                button.grid_remove()
+
+    def choose_t9_word(self, index):
+        # Підставляє вибране слово замість набраного початку слова.
+        button = self.t9_buttons[index]
+        word = button.cget('text')
+        if not word:
+            return
+
+        current_text = self.message_entry.get()
+        if current_text.endswith(' '):
+            updated_text = current_text + word
+        else:
+            parts = current_text.rsplit(' ', 1)
+            updated_text = (parts[0] + ' ' if len(parts) == 2 else '') + word
+
+        self.message_entry.delete(0, 'end')
+        self.message_entry.insert(0, updated_text)
+        self.message_entry.focus_set()
+        self.update_t9_suggestions()
+
     def send_message(self):
         text = self.message_entry.get().strip()
         if not text:
             return
         self.message_entry.delete(0, 'end')
+        self.update_t9_suggestions()
         # Своє повідомлення не виводить, сервер повертає його всім,
         self.send_line('TEXT', text)
 
