@@ -19,8 +19,8 @@ from threading import Thread
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
                            CTkScrollableFrame, CTkFont, set_appearance_mode)
 
-HOST = 'localhost'
-PORT = 8080
+HOST = '2.tcp.eu.ngrok.io'
+PORT = 16493
 
 USERNAME = 'Test1'
 
@@ -46,14 +46,14 @@ t_nine = [
     "авжеж", "авто", "автобус", "ага", "ахах", "але",
     "більш", "близько", "блін", "брат", "брати", "будь",
     "буде", "будемо", "будеш", "буду", "будуть", "бувай",
-    "був", "була", "було", "були", "бути", "вас", "вау",
+    "був", "була", "було", "були", "бути", "бурмалда", "вас", "вау",
     "вам", "важкий", "важко", "важливий", "велика",
     "велике", "великий", "вечір", "вибач", "вибачте",
     "вільна", "вільний", "від", "віддати", "відразу",
     "відповідь", "відповісти", "вітаю", "він", "вона",
     "воно", "вони", "вода", "взяти", "вже", "вчора",
     "вулиця", "втомився", "втомилась", "вранці", "вдома",
-    "вдень", "веселий", "гарна", "гарне", "гарний",
+    "вдень", "веселий", "воздухан", "гарна", "гарне", "гарний",
     "гаразд", "говориш", "говорю", "година", "гірша",
     "гірше", "гірший", "граю", "гроші", "дякую",
     "дякуючи", "далеко", "давати", "дати", "день", "де",
@@ -70,13 +70,13 @@ t_nine = [
     "каже", "кажу", "капец", "квартира", "коли", "кому",
     "кого", "ким", "ключі", "клас", "красивий", "краще",
     "краща", "кращий", "круто", "котрий", "купити",
-    "кімната", "людина", "люди", "любити", "люблю",
-    "ласка", "легко", "лише", "лол", "магазин", "мама",
+    "кімната", "котость", "людина", "люди", "любити", "люблю",
+    "ласка", "легко", "лише", "лол", "логіка", "магазин", "мама",
     "машина", "мабуть", "має", "маєш", "маємо", "маю",
     "майже", "малий", "мала", "мале", "мене", "мені",
     "менш", "мною", "місто", "місяць", "місце", "може",
     "можливий", "можливо", "можна", "можу", "можеш",
-    "могти", "на", "навіть", "напевно", "наприклад",
+    "могти", "мрія", "мрії", "мармор", "мігну", "на", "навіть", "напевно", "наприклад",
     "написав", "написати", "нас", "нам", "не", "негайно",
     "нести", "новий", "нова", "нове", "ніч", "нічого",
     "ніколи", "ні", "нормально", "незвично", "неймовірно",
@@ -89,7 +89,7 @@ t_nine = [
     "правда", "правильний", "принаймні", "приємно",
     "привіт", "приблизно", "прикольно", "прийду", "прийти",
     "прийшов", "проблема", "просто", "прошу", "проте",
-    "пізніше", "радий", "радісно", "раніше", "ранку",
+    "пізніше", "пайтон", "пон", "потужно", "радий", "радісно", "раніше", "ранку",
     "разом", "рік", "робити", "роблю", "робиш", "робота",
     "рідко", "розуміти", "саме", "себе", "собі", "серйозно",
     "сестра", "сьогодні", "сім'я", "скільки", "скоро",
@@ -102,9 +102,10 @@ t_nine = [
     "хочеш", "хоча", "хоче", "хотів", "хотіла", "хто",
     "хвилина", "час", "чекай", "чекаю", "чоловік",
     "чудово", "чути", "чую", "чий", "чия", "чиє", "чиї",
-    "чого", "чому", "що", "швидкий", "швидко", "школа",
+    "чого", "чому", "черемша", "що", "швидкий", "швидко", "школа",
     "шкода", "ще", "щасливий", "як", "який", "яка", "яке",
-    "які", "якого", "якому", "ясно"
+    "які", "якого", "якому", "ясно", "&@#?...", "...", "siuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+    "суууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууу", "анкарамессі"
 ]
 
 non_lol = []
@@ -143,6 +144,7 @@ class ChatClient(CTk):
         self.grid_rowconfigure(0, weight=1)
 
         self.is_menu_open = False
+        self.menu_width = CLOSEDW
         self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
         self.menu_frame.pack_propagate(False)
@@ -222,16 +224,17 @@ class ChatClient(CTk):
 
     def animate_menu(self):
         target = OPENW if self.is_menu_open else CLOSEDW
-        current = self.menu_frame.winfo_width()
 
-        if abs(current - target) <= STEP:
+        if abs(self.menu_width - target) <= STEP:
+            self.menu_width = target
             self.menu_frame.configure(width=target)
             if self.is_menu_open:
                 self.menu_content.pack(fill='x', padx=10, pady=10)
             return
 
-        step = STEP if target >= current else -STEP
-        self.menu_frame.configure(width=current + step)
+        step = STEP if target > self.menu_width else -STEP
+        self.menu_width += step
+        self.menu_frame.configure(width=self.menu_width)
         self.after(10, self.animate_menu)
 
 
@@ -350,7 +353,6 @@ class ChatClient(CTk):
 
 
     def update_t9_suggestions(self, event=None):
-        # Після пробілу починаємо пошук для наступного слова.
         current_text = self.message_entry.get()
         prefix = current_text.split()[-1] if current_text and not current_text.endswith(' ') else ''
 
@@ -358,8 +360,6 @@ class ChatClient(CTk):
         if prefix:
             matches = [word for word in t_nine
                        if word.lower().startswith(prefix.lower())]
-            # Випадкові слова без повторів; якщо збігів менше трьох,
-            # показуємо всі доступні.
             matches = random.sample(matches, min(3, len(matches)))
 
         for index, button in enumerate(self.t9_buttons):
@@ -371,7 +371,6 @@ class ChatClient(CTk):
                 button.grid_remove()
 
     def choose_t9_word(self, index):
-        # Підставляє вибране слово замість набраного початку слова.
         button = self.t9_buttons[index]
         word = button.cget('text')
         if not word:
@@ -385,7 +384,7 @@ class ChatClient(CTk):
             updated_text = (parts[0] + ' ' if len(parts) == 2 else '') + word
 
         self.message_entry.delete(0, 'end')
-        self.message_entry.insert(0, updated_text)
+        self.message_entry.insert(0, updated_text + " ")
         self.message_entry.focus_set()
         self.update_t9_suggestions()
 
@@ -395,7 +394,6 @@ class ChatClient(CTk):
             return
         self.message_entry.delete(0, 'end')
         self.update_t9_suggestions()
-        # Своє повідомлення не виводить, сервер повертає його всім,
         self.send_line('TEXT', text)
 
     def save_name(self):
