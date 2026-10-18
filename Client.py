@@ -16,7 +16,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
-                           CTkScrollableFrame, CTkFont, set_appearance_mode)
+                           CTkScrollableFrame, CTkFont, set_appearance_mode, )
 
 HOST = 'localhost'
 PORT = 8080            
