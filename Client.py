@@ -8,7 +8,6 @@
     Сервер -> клієнту:
         TEXT@нік@текст чиєсь повідомлення
         INFO@текст службове повідомлення
-
 """
 
 from datetime import datetime
@@ -79,7 +78,7 @@ class ChatClient(CTk):
         self.message_labels = []
         self.wraplength = 420
 
-        # Повідомлення які клієнт може прийняти
+        # Повідомлення, які клієнт може прийняти
         self.handlers = {
             'TEXT': self.on_text,
             'INFO': self.on_info,
