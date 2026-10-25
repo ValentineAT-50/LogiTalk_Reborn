@@ -8,17 +8,16 @@
     Сервер -> клієнту:
         TEXT@нік@текст чиєсь повідомлення
         INFO@текст службове повідомлення
+
 """
 
+from datetime import datetime
 from queue import Queue, Empty
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 
-import os
-from tkinter import Canvas
-from PIL import Image, ImageTk, ImageEnhance
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
-                           CTkScrollableFrame, CTkFont, set_appearance_mode,CTkScrollbar)
+                           CTkScrollableFrame, CTkFont, set_appearance_mode)
 
 HOST = 'localhost'
 PORT = 8080            
@@ -30,39 +29,55 @@ BUFF = 4096
 SEPAR = '@'
 END = '\n'
 
-OPENW = 200
-CLOSEDW = 48
-STEP = 16
-PAD = 10
-SIDE = 14
-INNER = 10
-RADIUS = 12
+OPENW = 220
+CLOSEDW = 56
+STEP = 18
 
-BG_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'images.jpg')
-BG_DIM = 0.55
-COLOR_BG = '#1e1e1e'
+BG_MAIN = '#1a1d23'
+BG_PANEL = '#15171c'
+BG_HEADER = '#20242b'
+BG_INPUT = '#262a32'
+
+BUBBLE_OWN = '#4f7cff'
+BUBBLE_OTHER = '#2b2f38'
+BUBBLE_INFO = '#20242b'
+
+TXT_MAIN = '#eef0f3'
+TXT_MUTED = '#8b909b'
+TXT_INFO = '#6f7480'
+
+ACCENT = '#4f7cff'
+ONLINE = '#3ddc84'
+OFFLINE = '#e5534b'
+
+AVATAR_COLORS = ['#4f7cff', '#e5534b', '#3ddc84', '#f2b705',
+                 '#9b5de5', '#00bbf9', '#f15bb5', '#ff7b54']
 
 
-COLOR_OWN = '#2f6fdb'
-COLOR_OTHER = '#3a3f46'
-COLOR_INFO = '#2b2b2b'
+def avatar_color(name):
+    return AVATAR_COLORS[sum(map(ord, name)) % len(AVATAR_COLORS)]
 
 
 class ChatClient(CTk):
     def __init__(self):
         super().__init__()
         set_appearance_mode('dark')
-        self.title('Chat Client')
-        self.geometry('700x500')
-        self.minsize(500, 350)
+        try:
+            set_default_color_theme('blue')
+        except Exception:
+            pass
+
+        self.title('клон діскорда')
+        self.geometry('760x560')
+        self.minsize(520, 380)
+        self.configure(fg_color=BG_MAIN)
 
         self.username = USERNAME
         self.sock = None
-        self.inbox = Queue()        # Черга яка відправляє все повідомлення
-        self.messages = []  # усі повідомлення, щоб перемалювати при зміні розміру
-        self.next_y = PAD  # де малювати наступне повідомлення
-        self.bg_photo = None
-        self.bg_source = self.load_background()
+        self.connected = False
+        self.inbox = Queue()
+        self.message_labels = []
+        self.wraplength = 420
 
         # Повідомлення які клієнт може прийняти
         self.handlers = {
@@ -82,195 +97,159 @@ class ChatClient(CTk):
         self.grid_rowconfigure(0, weight=1)
 
         self.is_menu_open = False
-        self.menu_width = CLOSEDW
-        self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
+        self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0, fg_color=BG_PANEL)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
         self.menu_frame.pack_propagate(False)
 
-        self.menu_button = CTkButton(self.menu_frame, text='▶', width=32,
-                                     command=self.toggle_menu)
-        self.menu_button.pack(anchor='w', padx=8, pady=10)
+        self.menu_button = CTkButton(
+            self.menu_frame, text='☰', width=36, height=36, corner_radius=8,
+            fg_color='transparent', hover_color=BG_HEADER, text_color=TXT_MAIN,
+            command=self.toggle_menu)
+        self.menu_button.pack(anchor='w', padx=10, pady=14)
 
         self.menu_content = CTkFrame(self.menu_frame, fg_color='transparent')
-        CTkLabel(self.menu_content, text='Ваш нік', anchor='w').pack(fill='x')
-        self.name_entry = CTkEntry(self.menu_content, placeholder_text='Нік...')
-        self.name_entry.pack(fill='x', pady=5)
+        CTkLabel(self.menu_content, text='ПРОФІЛЬ', anchor='w', text_color=TXT_MUTED,
+                 font=CTkFont(size=11, weight='bold')).pack(fill='x', pady=(0, 8))
+
+        self.avatar_preview = CTkLabel(
+            self.menu_content, text=self.username[:1].upper(), width=56, height=56,
+            corner_radius=28, fg_color=avatar_color(self.username), text_color='white',
+            font=CTkFont(size=20, weight='bold'))
+        self.avatar_preview.pack(pady=(0, 12))
+
+        self.name_entry = CTkEntry(self.menu_content, placeholder_text='Ваш нік',
+                                    fg_color=BG_INPUT, border_width=0, corner_radius=8)
+        self.name_entry.pack(fill='x', pady=(0, 8))
         self.name_entry.insert(0, self.username)
-        CTkButton(self.menu_content, text='Зберегти',
+
+        CTkButton(self.menu_content, text='Зберегти', corner_radius=8,
+                  fg_color=ACCENT, hover_color='#3d63d1',
                   command=self.save_name).pack(fill='x')
 
-        right_frame = CTkFrame(self, fg_color='transparent')
+        right_frame = CTkFrame(self, fg_color=BG_MAIN)
         right_frame.grid(row=0, column=1, sticky='nsew')
         right_frame.grid_columnconfigure(0, weight=1)
-        right_frame.grid_rowconfigure(0, weight=1)
+        right_frame.grid_rowconfigure(1, weight=1)
 
-        self.chat_canvas = Canvas(right_frame, highlightthickness=0, bd=0,
-                                  bg=COLOR_BG, yscrollincrement=20)
-        self.chat_canvas.grid(row=0, column=0, sticky='nsew')
-        self.bg_item = self.chat_canvas.create_image(0, 0, anchor='nw', tags='bg')
+        header = CTkFrame(right_frame, fg_color=BG_HEADER, corner_radius=0, height=56)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        header.grid_columnconfigure(1, weight=1)
 
-        self.scrollbar = CTkScrollbar(right_frame, command=self.chat_canvas.yview)
-        self.scrollbar.grid(row=0, column=1, sticky='ns')
-        self.chat_canvas.configure(yscrollcommand=self.on_scroll)
+        self.status_dot = CTkLabel(header, text='●', text_color=OFFLINE,
+                                    font=CTkFont(size=14), width=20)
+        self.status_dot.grid(row=0, column=0, padx=(16, 0), pady=10)
 
-        self.chat_canvas.bind('<Configure>', self.on_chat_resize)
-        self.bind_all('<MouseWheel>', self.on_mousewheel)
+        self.status_label = CTkLabel(header, text='Підключення...', anchor='w',
+                                      text_color=TXT_MAIN,
+                                      font=CTkFont(size=13, weight='bold'))
+        self.status_label.grid(row=0, column=1, sticky='w', padx=8, pady=10)
 
-        bottom_frame = CTkFrame(right_frame, fg_color='transparent')
-        bottom_frame.grid(row=1, column=0, columnspan=2, sticky='ew')
+        self.chat_field = CTkScrollableFrame(right_frame, fg_color=BG_MAIN,
+                                              scrollbar_button_color=BG_HEADER,
+                                              scrollbar_button_hover_color=ACCENT)
+        self.chat_field.grid(row=1, column=0, sticky='nsew', padx=6, pady=6)
+        self.chat_field.grid_columnconfigure(0, weight=1)
+        self.chat_field.bind('<Configure>', self.on_chat_resize, add='+')
+
+        bottom_frame = CTkFrame(right_frame, fg_color=BG_PANEL, corner_radius=0)
+        bottom_frame.grid(row=2, column=0, sticky='ew')
         bottom_frame.grid_columnconfigure(0, weight=1)
 
-        self.message_entry = CTkEntry(bottom_frame, height=40,
-                                      placeholder_text='Введіть повідомлення:')
-        self.message_entry.grid(row=0, column=0, sticky='ew', padx=(10, 6), pady=10)
+        self.message_entry = CTkEntry(
+            bottom_frame, height=42, placeholder_text='Написати повідомлення...',
+            fg_color=BG_INPUT, border_width=0, corner_radius=12,
+            font=CTkFont(size=13))
+        self.message_entry.grid(row=0, column=0, sticky='ew', padx=(12, 8), pady=12)
         self.message_entry.bind('<Return>', lambda event: self.send_message())
 
-        self.send_button = CTkButton(bottom_frame, text='>', width=50, height=40,
-                                     command=self.send_message)
-        self.send_button.grid(row=0, column=1, padx=(0, 10), pady=10)
+        self.send_button = CTkButton(
+            bottom_frame, text='➜', width=44, height=42, corner_radius=12,
+            fg_color=ACCENT, hover_color='#3d63d1', font=CTkFont(size=15),
+            command=self.send_message)
+        self.send_button.grid(row=0, column=1, padx=(0, 12), pady=12)
 
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
-        self.menu_button.configure(text='◀' if self.is_menu_open else '▶')
         if not self.is_menu_open:
             self.menu_content.pack_forget()
         self.animate_menu()
 
     def animate_menu(self):
         target = OPENW if self.is_menu_open else CLOSEDW
+        current = self.menu_frame.winfo_width()
 
-        if abs(self.menu_width - target) <= STEP:
-            self.menu_width = target
+        if abs(current - target) <= STEP:
             self.menu_frame.configure(width=target)
             if self.is_menu_open:
-                self.menu_content.pack(fill='x', padx=10, pady=10)
+                self.menu_content.pack(fill='x', padx=14, pady=14)
             return
 
-        step = STEP if target > self.menu_width else -STEP
-        self.menu_width += step
-        self.menu_frame.configure(width=self.menu_width)
-        self.after(10, self.animate_menu)
+        step = STEP if target > current else -STEP
+        self.menu_frame.configure(width=current + step)
+        self.after(8, self.animate_menu)
 
 
-    def load_background(self):
-        try:
-            img = Image.open(BG_IMAGE).convert('RGB')
-        except OSError:
-            return None                       # немає файлу, буде суцільний колір
-        img.thumbnail((1920, 1080))           # щоб ресайз не гальмував
-        return ImageEnhance.Brightness(img).enhance(BG_DIM)
-
-    def update_background(self, width, height):
-        if not self.bg_source or width < 2 or height < 2:
+    def add_message(self, text, author=None, is_own=False, is_info=False):
+        if is_info:
+            row = CTkFrame(self.chat_field, fg_color='transparent')
+            row.pack(fill='x', pady=6)
+            CTkLabel(row, text=text, text_color=TXT_INFO, font=CTkFont(size=11)
+                      ).pack(anchor='center')
+            self.after(20, self.scroll_down)
             return
-        # "cover": заповнюємо всю область і обрізаємо зайве по центру
-        sw, sh = self.bg_source.size
-        scale = max(width / sw, height / sh)
-        resized = self.bg_source.resize((int(sw * scale) + 1, int(sh * scale) + 1),
-                                        Image.BILINEAR)
-        left = (resized.width - width) // 2
-        top = (resized.height - height) // 2
-        cropped = resized.crop((left, top, left + width, top + height))
-        self.bg_photo = ImageTk.PhotoImage(cropped)   # треба тримати посилання!
-        self.chat_canvas.itemconfigure(self.bg_item, image=self.bg_photo)
 
-    def place_background(self):
-        # фон не прокручується: тримаємо його у верхньому лівому куті видимої області
-        self.chat_canvas.coords(self.bg_item, 0, self.chat_canvas.canvasy(0))
-        self.chat_canvas.tag_lower('bg')
+        outer = CTkFrame(self.chat_field, fg_color='transparent')
+        outer.pack(fill='x', pady=3, anchor='e' if is_own else 'w')
 
-    # ---------- прокрутка ----------
-    def on_scroll(self, first, last):
-        self.scrollbar.set(first, last)
-        self.place_background()
+        wrapper = CTkFrame(outer, fg_color='transparent')
+        wrapper.pack(anchor='e' if is_own else 'w', padx=8)
 
-    def on_mousewheel(self, event):
-        self.chat_canvas.yview_scroll(-3 if event.delta > 0 else 3, 'units')
+        if not is_own and author:
+            avatar = CTkLabel(wrapper, text=author[:1].upper(), width=30, height=30,
+                              corner_radius=15, fg_color=avatar_color(author),
+                              text_color='white', font=CTkFont(size=12, weight='bold'))
+            avatar.grid(row=0, column=0, rowspan=2, sticky='n', padx=(0, 8))
+
+        bubble = CTkFrame(wrapper, fg_color=BUBBLE_OWN if is_own else BUBBLE_OTHER,
+                          corner_radius=14)
+        col = 1 if (not is_own and author) else 0
+        bubble.grid(row=0, column=col, sticky='e' if is_own else 'w')
+
+        if author and not is_own:
+            CTkLabel(bubble, text=author, anchor='w',
+                     text_color='#c7d2fe' if is_own else '#a9b4c4',
+                     font=CTkFont(size=11, weight='bold')
+                     ).pack(fill='x', padx=12, pady=(8, 0))
+
+        label = CTkLabel(bubble, text=text, justify='left', anchor='w',
+                         wraplength=self.wraplength, text_color='white',
+                         font=CTkFont(size=13))
+        label.pack(fill='x', padx=12, pady=(2 if (author and not is_own) else 8, 4))
+
+        time_label = CTkLabel(bubble, text=datetime.now().strftime('%H:%M'),
+                              text_color='#c7d2fe' if is_own else TXT_MUTED,
+                              font=CTkFont(size=9), anchor='e')
+        time_label.pack(fill='x', padx=12, pady=(0, 6))
+
+        self.message_labels.append(label)
+        self.after(20, self.scroll_down)
+
+    def on_chat_resize(self, event):
+        self.wraplength = max(int(event.width * 0.55), 140)
+        for label in self.message_labels:
+            label.configure(wraplength=self.wraplength)
 
     def scroll_down(self):
         self.update_idletasks()
-        self.chat_canvas.yview_moveto(1.0)
+        self.chat_field._parent_canvas.yview_moveto(1.0)
 
-    # ---------- повідомлення ----------
-    def add_message(self, text, author=None, is_own=False, is_info=False):
-        message = {'text': text, 'author': author, 'own': is_own, 'info': is_info}
-        self.messages.append(message)
-        self.render(message)
-        self.after(20, self.scroll_down)
+    def set_status(self, connected, text):
+        self.connected = connected
+        self.status_dot.configure(text_color=ONLINE if connected else OFFLINE)
+        self.status_label.configure(text=text)
 
-    def render(self, message):
-        canvas = self.chat_canvas
-        width = canvas.winfo_width()
-        self.next_y = self.draw_message(message, width, self.next_y)
-        canvas.configure(scrollregion=(0, 0, width, max(self.next_y, canvas.winfo_height())))
-
-    def redraw(self):
-        self.chat_canvas.delete('msg')
-        self.next_y = PAD
-        for message in self.messages:
-            self.render(message)
-
-    def on_chat_resize(self, event):
-        self.update_background(event.width, event.height)
-        self.redraw()
-        self.place_background()
-
-    def draw_message(self, message, width, y):
-        canvas = self.chat_canvas
-        max_text_w = max(int(width * 0.7), 160)
-
-        if message['info']:
-            color, text_color = COLOR_INFO, '#9aa0a6'
-        elif message['own']:
-            color, text_color = COLOR_OWN, 'white'
-        else:
-            color, text_color = COLOR_OTHER, 'white'
-
-        author_id = None
-        if message['author']:
-            author_id = canvas.create_text(0, 0, text=message['author'], anchor='nw',
-                                           fill='#e0e0e0', font=('Segoe UI', 9, 'bold'),
-                                           tags='msg')
-        text_id = canvas.create_text(0, 0, text=message['text'], anchor='nw',
-                                     width=max_text_w, fill=text_color,
-                                     justify='center' if message['info'] else 'left',
-                                     font=('Segoe UI', 11), tags='msg')
-
-        # міряємо розміри тексту, поки він у (0, 0)
-        tx1, ty1, tx2, ty2 = canvas.bbox(text_id)
-        text_w, text_h = tx2 - tx1, ty2 - ty1
-        author_w = author_h = 0
-        if author_id:
-            ax1, ay1, ax2, ay2 = canvas.bbox(author_id)
-            author_w, author_h = ax2 - ax1, ay2 - ay1
-
-        box_w = max(text_w, author_w) + 2 * INNER
-        box_h = author_h + text_h + 2 * 6
-
-        if message['info']:
-            left = (width - box_w) // 2
-        elif message['own']:
-            left = width - SIDE - box_w
-        else:
-            left = SIDE
-
-        rect = self.rounded_rect(left, y, left + box_w, y + box_h, RADIUS,
-                                 fill=color, outline='', tags='msg')
-        inner_y = y + 6
-        if author_id:
-            canvas.coords(author_id, left + INNER, inner_y)
-            inner_y += author_h
-        canvas.coords(text_id, left + INNER, inner_y)
-        canvas.tag_lower(rect, author_id or text_id)   # бульбашка під текстом, але над фоном
-
-        return y + box_h + PAD
-
-    def rounded_rect(self, x1, y1, x2, y2, r, **kwargs):
-        points = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r,
-                  x2, y2 - r, x2, y2, x2 - r, y2, x1 + r, y2,
-                  x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-        return self.chat_canvas.create_polygon(points, smooth=True, **kwargs)
-
+    # ---------- Network ----------
 
     def connect(self):
         try:
@@ -278,23 +257,26 @@ class ChatClient(CTk):
             self.sock.connect((HOST, PORT))
         except OSError as error:
             self.sock = None
+            self.set_status(False, 'Немає з’єднання')
             self.add_message(f"Не вдалося підключитися до сервера: {error}", is_info=True)
             return
 
+        self.set_status(True, self.username)
         Thread(target=self.receive_loop, daemon=True).start()
         self.send_line('NAME', self.username)
 
     def send_line(self, message_type, *parts):
         # Збирання рядка до купи ТИП@частина1@частина2
         if not self.sock:
-            self.add_message('Немає зʼєднання із сервером', is_info=True)
+            self.add_message('Немає з’єднання із сервером', is_info=True)
             return
         line = SEPAR.join((message_type,) + parts) + END
         try:
             self.sock.sendall(line.encode(ENC))
         except OSError:
             self.sock = None
-            self.add_message('Зʼєднання із сервером втрачено', is_info=True)
+            self.set_status(False, 'З’єднання втрачено')
+            self.add_message('З’єднання із сервером втрачено', is_info=True)
 
     def receive_loop(self):
         # Потік який передає текст в чергу, бо іноді не все встигає обробитись перед виводом
@@ -310,7 +292,7 @@ class ChatClient(CTk):
             while END in buffer:
                 line, buffer = buffer.split(END, 1)
                 self.inbox.put(line.strip())
-        self.inbox.put(f"INFO{SEPAR}Зʼєднання із сервером втрачено")
+        self.inbox.put(f"INFO{SEPAR}З’єднання із сервером втрачено")
 
     def process_inbox(self):
         # Виводить все що накопилось у черзі
@@ -343,7 +325,10 @@ class ChatClient(CTk):
     def on_info(self, parts):
         if len(parts) < 2:
             return
-        self.add_message(parts[1], is_info=True)
+        text = parts[1]
+        if 'втрачено' in text.lower() or 'не вдалося' in text.lower():
+            self.set_status(False, 'Немає з’єднання')
+        self.add_message(text, is_info=True)
 
 
     def send_message(self):
@@ -359,7 +344,11 @@ class ChatClient(CTk):
         if not new_name or new_name == self.username:
             return
         self.username = new_name
-        self.title(f"Chat Client — {new_name}")
+        self.avatar_preview.configure(text=new_name[:1].upper(),
+                                       fg_color=avatar_color(new_name))
+        self.title(f"Chat — {new_name}")
+        if self.connected:
+            self.status_label.configure(text=new_name)
         self.send_line('NAME', new_name)
 
     def on_close(self):
