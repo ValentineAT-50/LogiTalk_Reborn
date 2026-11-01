@@ -246,20 +246,17 @@ class ChatClient(CTk):
             button.grid_remove()
             self.t9_buttons.append(button)
 
-        self.message_entry = CTkEntry(bottom_frame, height=40,
-            placeholder_text='Введіть повідомлення:')
-        self.message_entry.grid(row=1, column=0, sticky='ew', padx=(10, 6), pady=10)
         self.message_entry = CTkEntry(
             bottom_frame, height=42, placeholder_text='Написати повідомлення...',
             fg_color=BG_INPUT, border_width=0, corner_radius=12,
             font=CTkFont(size=13))
-        self.message_entry.grid(row=0, column=0, sticky='ew', padx=(12, 8), pady=12)
+        self.message_entry.grid(row=1, column=0, sticky='ew', padx=(10, 6), pady=10)
         self.message_entry.bind('<Return>', lambda event: self.send_message())
         self.message_entry.bind('<KeyRelease>', self.update_t9_suggestions)
 
         self.send_button = CTkButton(bottom_frame, text='>', width=50, height=40,
             command=self.send_message)
-        self.send_button.grid(row=0, column=1, padx=(0, 12), pady=12)
+        self.send_button.grid(row=1, column=1, padx=(0, 10), pady=10)
 
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
@@ -330,7 +327,7 @@ class ChatClient(CTk):
         self.after(20, self.scroll_down)
 
     def on_chat_resize(self, event):
-        self.wraplength = max(int(event.width * 0.55), 140)
+        self.wraplength = max(int(event.width * 0.7), 160)
         for label in self.message_labels:
             label.configure(wraplength=self.wraplength)
 

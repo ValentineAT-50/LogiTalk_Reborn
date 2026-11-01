@@ -8,13 +8,12 @@
     Сервер -> клієнту:
         TEXT@нік@текст чиєсь повідомлення
         INFO@текст службове повідомлення
-
 """
 
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 from threading import Thread, Lock
 
-HOST = 'localhost'
+HOST = '0.0.0.0'
 PORT = 8080
 
 ENC = 'utf-8'
