@@ -12,6 +12,7 @@
 
 from datetime import datetime
 from queue import Queue, Empty
+import random
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
 
@@ -49,6 +50,79 @@ ACCENT = '#4f7cff'
 ONLINE = '#3ddc84'
 OFFLINE = '#e5534b'
 
+
+
+COLOR_OWN = '#6699ff'
+COLOR_OTHER = '#6699ff'
+COLOR_INFO = '#6699ff'
+
+t_nine = [
+    "авжеж", "авто", "автобус", "ага", "ахах", "але",
+    "більш", "близько", "блін", "брат", "брати", "будь",
+    "буде", "будемо", "будеш", "буду", "будуть", "бувай",
+    "був", "була", "було", "були", "бути", "бурмалда", "вас", "вау",
+    "вам", "важкий", "важко", "важливий", "велика",
+    "велике", "великий", "вечір", "вибач", "вибачте",
+    "вільна", "вільний", "від", "віддати", "відразу",
+    "відповідь", "відповісти", "вітаю", "він", "вона",
+    "воно", "вони", "вода", "взяти", "вже", "вчора",
+    "вулиця", "втомився", "втомилась", "вранці", "вдома",
+    "вдень", "веселий", "воздухан", "гарна", "гарне", "гарний",
+    "гаразд", "говориш", "говорю", "година", "гірша",
+    "гірше", "гірший", "граю", "гроші", "дякую",
+    "дякуючи", "далеко", "давати", "дати", "день", "де",
+    "дивно", "дівчина", "дитина", "дім", "доброго",
+    "добре", "добрий", "додому", "допомога", "допомогти",
+    "дорога", "друг", "друзі", "дуже", "думаю", "думаєш",
+    "документ", "жесть", "жінка", "жити", "завжди",
+    "завтра", "зазвичай", "закрити", "зараз", "зайнята",
+    "зайнятий", "зла", "злий", "знає", "знаєш", "знаю",
+    "знати", "знову", "зробити", "зроблю", "зрозуміло",
+    "звідси", "звідти", "згоден", "згодна", "зустріч",
+    "іду", "їжа", "їхати", "їду", "їдеш", "їм", "їсти",
+    "її", "іноді", "інтернет", "його", "йду", "кава",
+    "каже", "кажу", "капец", "квартира", "коли", "кому",
+    "кого", "ким", "ключі", "клас", "красивий", "краще",
+    "краща", "кращий", "круто", "котрий", "купити",
+    "кімната", "котость", "людина", "люди", "любити", "люблю",
+    "ласка", "легко", "лише", "лол", "логіка", "магазин", "мама",
+    "машина", "мабуть", "має", "маєш", "маємо", "маю",
+    "майже", "малий", "мала", "мале", "мене", "мені",
+    "менш", "мною", "місто", "місяць", "місце", "може",
+    "можливий", "можливо", "можна", "можу", "можеш",
+    "могти", "мрія", "мрії", "мармор", "мігну", "на", "навіть", "напевно", "наприклад",
+    "написав", "написати", "нас", "нам", "не", "негайно",
+    "нести", "новий", "нова", "нове", "ніч", "нічого",
+    "ніколи", "ні", "нормально", "незвично", "неймовірно",
+    "ну", "обожнюю", "окей", "окремо", "однак", "отримати",
+    "отже", "ось", "ойой", "пам'ятати", "пака", "перед",
+    "перепрошую", "після", "пішов", "пішла", "піти",
+    "питання", "пити", "погано", "погоджуюсь", "поганий",
+    "погана", "погане", "подруга", "подобається",
+    "подзвонити", "поїзд", "поки", "потрібний", "працюю",
+    "правда", "правильний", "принаймні", "приємно",
+    "привіт", "приблизно", "прикольно", "прийду", "прийти",
+    "прийшов", "проблема", "просто", "прошу", "проте",
+    "пізніше", "пайтон", "пон", "потужно", "радий", "радісно", "раніше", "ранку",
+    "разом", "рік", "робити", "роблю", "робиш", "робота",
+    "рідко", "розуміти", "саме", "себе", "собі", "серйозно",
+    "сестра", "сьогодні", "сім'я", "скільки", "скоро",
+    "смішно", "сумно", "сумую", "супер", "старий", "стара",
+    "старе", "спати", "справді", "справа", "справи", "сюди",
+    "так", "таке", "також", "там", "тато", "телефон",
+    "тепер", "тебе", "тобі", "тобою", "тоді", "той", "тому",
+    "туди", "тут", "ти", "тиждень", "тільки", "увечері",
+    "угу", "ух", "хаха", "хлопець", "хліб", "хочу",
+    "хочеш", "хоча", "хоче", "хотів", "хотіла", "хто",
+    "хвилина", "час", "чекай", "чекаю", "чоловік",
+    "чудово", "чути", "чую", "чий", "чия", "чиє", "чиї",
+    "чого", "чому", "черемша", "що", "швидкий", "швидко", "школа",
+    "шкода", "ще", "щасливий", "як", "який", "яка", "яке",
+    "які", "якого", "якому", "ясно", "&@#?...", "...", "siuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+    "суууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууу", "анкарамессі"
+]
+
+non_lol = []
 AVATAR_COLORS = ['#4f7cff', '#e5534b', '#3ddc84', '#f2b705',
                  '#9b5de5', '#00bbf9', '#f15bb5', '#ff7b54']
 
@@ -96,6 +170,8 @@ class ChatClient(CTk):
         self.grid_rowconfigure(0, weight=1)
 
         self.is_menu_open = False
+        self.menu_width = CLOSEDW
+        self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0)
         self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0, fg_color=BG_PANEL)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
         self.menu_frame.pack_propagate(False)
@@ -155,16 +231,33 @@ class ChatClient(CTk):
         bottom_frame.grid(row=2, column=0, sticky='ew')
         bottom_frame.grid_columnconfigure(0, weight=1)
 
+        # T9: три підказки над полем введення
+        self.t9_frame = CTkFrame(bottom_frame, fg_color='transparent')
+        self.t9_frame.grid(row=0, column=0, columnspan=2, sticky='ew',
+                           padx=10, pady=(4, 0))
+        self.t9_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        self.t9_buttons = []
+        for i in range(3):
+            button = CTkButton(
+                self.t9_frame, text='', height=28,
+                command=lambda index=i: self.choose_t9_word(index)
+            )
+            button.grid(row=0, column=i, sticky='ew', padx=3)
+            button.grid_remove()
+            self.t9_buttons.append(button)
+
+        self.message_entry = CTkEntry(bottom_frame, height=40,
+            placeholder_text='Введіть повідомлення:')
+        self.message_entry.grid(row=1, column=0, sticky='ew', padx=(10, 6), pady=10)
         self.message_entry = CTkEntry(
             bottom_frame, height=42, placeholder_text='Написати повідомлення...',
             fg_color=BG_INPUT, border_width=0, corner_radius=12,
             font=CTkFont(size=13))
         self.message_entry.grid(row=0, column=0, sticky='ew', padx=(12, 8), pady=12)
         self.message_entry.bind('<Return>', lambda event: self.send_message())
+        self.message_entry.bind('<KeyRelease>', self.update_t9_suggestions)
 
-        self.send_button = CTkButton(
-            bottom_frame, text='➜', width=44, height=42, corner_radius=12,
-            fg_color=ACCENT, hover_color='#3d63d1', font=CTkFont(size=15),
+        self.send_button = CTkButton(bottom_frame, text='>', width=50, height=40,
             command=self.send_message)
         self.send_button.grid(row=0, column=1, padx=(0, 12), pady=12)
 
@@ -178,15 +271,17 @@ class ChatClient(CTk):
         target = OPENW if self.is_menu_open else CLOSEDW
         current = self.menu_frame.winfo_width()
 
-        if abs(current - target) <= STEP:
+        if abs(self.menu_width - target) <= STEP:
+            self.menu_width = target
             self.menu_frame.configure(width=target)
             if self.is_menu_open:
                 self.menu_content.pack(fill='x', padx=14, pady=14)
             return
 
-        step = STEP if target > current else -STEP
-        self.menu_frame.configure(width=current + step)
-        self.after(8, self.animate_menu)
+        step = STEP if target > self.menu_width else -STEP
+        self.menu_width += step
+        self.menu_frame.configure(width=self.menu_width)
+        self.after(10, self.animate_menu)
 
 
     def add_message(self, text, author=None, is_own=False, is_info=False):
@@ -329,13 +424,56 @@ class ChatClient(CTk):
             self.set_status(False, 'Немає з’єднання')
         self.add_message(text, is_info=True)
 
+    def text_count(self):
+        text2 = self.message_entry.get()
+        count = len(text2)
+        lol_index = count - 1
+        non_lol.append(lol_index)
+
+
+
+    def update_t9_suggestions(self, event=None):
+        current_text = self.message_entry.get()
+        prefix = current_text.split()[-1] if current_text and not current_text.endswith(' ') else ''
+
+        matches = []
+        if prefix:
+            matches = [word for word in t_nine
+                       if word.lower().startswith(prefix.lower())]
+            matches = random.sample(matches, min(3, len(matches)))
+
+        for index, button in enumerate(self.t9_buttons):
+            if index < len(matches):
+                button.configure(text=matches[index], state='normal')
+                button.grid()
+            else:
+                button.configure(text='')
+                button.grid_remove()
+
+    def choose_t9_word(self, index):
+        button = self.t9_buttons[index]
+        word = button.cget('text')
+        if not word:
+            return
+
+        current_text = self.message_entry.get()
+        if current_text.endswith(' '):
+            updated_text = current_text + word
+        else:
+            parts = current_text.rsplit(' ', 1)
+            updated_text = (parts[0] + ' ' if len(parts) == 2 else '') + word
+
+        self.message_entry.delete(0, 'end')
+        self.message_entry.insert(0, updated_text + " ")
+        self.message_entry.focus_set()
+        self.update_t9_suggestions()
 
     def send_message(self):
         text = self.message_entry.get().strip()
         if not text:
             return
         self.message_entry.delete(0, 'end')
-        # Своє повідомлення не виводить, сервер повертає його всім,
+        self.update_t9_suggestions()
         self.send_line('TEXT', text)
 
     def save_name(self):
