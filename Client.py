@@ -140,7 +140,7 @@ class ChatClient(CTk):
         except Exception:
             pass
 
-        self.title('клон діскорда')
+        self.title('LogiTalk Reborn')
         self.geometry('760x560')
         self.minsize(520, 380)
         self.configure(fg_color=BG_MAIN)
@@ -245,6 +245,7 @@ class ChatClient(CTk):
             button.grid(row=0, column=i, sticky='ew', padx=3)
             button.grid_remove()
             self.t9_buttons.append(button)
+        self.t9_frame.grid_remove()
 
         self.message_entry = CTkEntry(
             bottom_frame, height=42, placeholder_text='Написати повідомлення...',
@@ -446,6 +447,10 @@ class ChatClient(CTk):
             else:
                 button.configure(text='')
                 button.grid_remove()
+        if matches:
+            self.t9_frame.grid()
+        else:
+            self.t9_frame.grid_remove()
 
     def choose_t9_word(self, index):
         button = self.t9_buttons[index]
