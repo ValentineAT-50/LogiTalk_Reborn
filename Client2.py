@@ -15,15 +15,16 @@ from datetime import datetime
 from queue import Queue, Empty
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
+from tkinter import filedialog
 
+from datetime import datetime
+from PIL import Image, ImageTk
 from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
-                           CTkScrollableFrame, CTkFont, set_appearance_mode,
-                           set_default_color_theme)
 
 HOST = 'localhost'
 PORT = 8080
 
-USERNAME = 'Test2'
+USERNAME = 'Test1'
 
 ENC = 'utf-8'
 BUFF = 4096
@@ -43,14 +44,18 @@ BUBBLE_OWN = '#4f7cff'
 BUBBLE_OTHER = '#2b2f38'
 BUBBLE_INFO = '#20242b'
 
+imager1 = None
 TXT_MAIN = '#eef0f3'
 TXT_MUTED = '#8b909b'
 TXT_INFO = '#6f7480'
 
+avatarka = None
 ACCENT = '#4f7cff'
 ONLINE = '#3ddc84'
 OFFLINE = '#e5534b'
 
+avatar_image = None
+avatar_path = None
 AVATAR_COLORS = ['#4f7cff', '#e5534b', '#3ddc84', '#f2b705',
                  '#9b5de5', '#00bbf9', '#f15bb5', '#ff7b54']
 
@@ -62,6 +67,10 @@ def avatar_color(name):
 class ChatClient(CTk):
     def __init__(self):
         super().__init__()
+
+        self.avatar_image = None
+        self.avatar_path = None
+
         set_appearance_mode('dark')
         try:
             set_default_color_theme('blue')
@@ -80,9 +89,11 @@ class ChatClient(CTk):
         self.message_labels = []
         self.wraplength = 420
 
+        # Повідомлення, які клієнт може прийняти
         self.handlers = {
             'TEXT': self.on_text,
             'INFO': self.on_info,
+            'TYPING': self.on_typing,
         }
 
         self.create_widgets()
@@ -97,6 +108,7 @@ class ChatClient(CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
+        # Бічне меню
         self.is_menu_open = False
         self.menu_frame = CTkFrame(self, width=CLOSEDW, corner_radius=0, fg_color=BG_PANEL)
         self.menu_frame.grid(row=0, column=0, sticky='ns')
@@ -127,6 +139,26 @@ class ChatClient(CTk):
                   fg_color=ACCENT, hover_color='#3d63d1',
                   command=self.save_name).pack(fill='x')
 
+        self.avatar_button = CTkButton(
+            self.menu_content,
+            text="Обрати аватарку",
+            command=self.choose_avatar
+        )
+        self.avatar_button.pack(fill="x", pady=5)
+
+        self.avatar_preview = CTkLabel(
+            self.menu_content,
+            text="Аватарка не вибрана"
+        )
+        self.avatar_preview.pack(pady=10)
+
+        self.avatar = CTkLabel(self.menu_content, text="")
+        self.avatar.pack(pady=5)
+
+        # Права частина вікна — створюємо ПЕРЕД використанням
+        right_frame = CTkFrame(self, fg_color="transparent")
+        right_frame.grid(row=0, column=1, sticky="nsew")
+
         right_frame = CTkFrame(self, fg_color=BG_MAIN)
         right_frame.grid(row=0, column=1, sticky='nsew')
         right_frame.grid_columnconfigure(0, weight=1)
@@ -140,11 +172,35 @@ class ChatClient(CTk):
         self.status_dot = CTkLabel(header, text='●', text_color=OFFLINE,
                                     font=CTkFont(size=14), width=20)
         self.status_dot.grid(row=0, column=0, padx=(16, 0), pady=10)
+        # Повідомлення чату
+        self.chat_field = CTkScrollableFrame(
+            right_frame,
+            fg_color="transparent"
+        )
+        self.chat_field.grid(
+            row=0, column=0,
+            sticky="nsew",
+            padx=10, pady=(10, 0)
+        )
+        self.chat_field.bind(
+            "<Configure>", self.on_chat_resize, add="+"
+        )
 
         self.status_label = CTkLabel(header, text='Підключення...', anchor='w',
                                       text_color=TXT_MAIN,
                                       font=CTkFont(size=13, weight='bold'))
         self.status_label.grid(row=0, column=1, sticky='w', padx=8, pady=10)
+        # Індикатор набору тексту
+        self.typing_label = CTkLabel(
+            right_frame,
+            text="",
+            text_color="#9aa0a6"
+        )
+        self.typing_label.grid(
+            row=1, column=0,
+            sticky="w",
+            padx=15
+        )
 
         self.chat_field = CTkScrollableFrame(right_frame, fg_color=BG_MAIN,
                                               scrollbar_button_color=BG_HEADER,
@@ -170,11 +226,74 @@ class ChatClient(CTk):
             command=self.send_message)
         self.send_button.grid(row=0, column=1, padx=(0, 12), pady=12)
 
+    def on_typing(self, parts):
+        if len(parts) < 3:
+            return
+
+        author, status = parts[1], parts[2]
+
+        if status == '1':
+            self.typing_users.add(author)
+        else:
+            self.typing_users.discard(author)
+
+        if not self.typing_users:
+            self.typing_label.configure(text='')
+            return
+
+        names = []
+
+        for name in sorted(self.typing_users):
+            if name == self.username:
+                names.append('Ти')
+            else:
+                names.append(name)
+
+        if len(names) == 1:
+            text = f'{names[0]} друкує...'
+        else:
+            text = ', '.join(names) + ' друкують...'
+
+        self.typing_label.configure(text=text)
+
+
     def toggle_menu(self):
         self.is_menu_open = not self.is_menu_open
         if not self.is_menu_open:
             self.menu_content.pack_forget()
         self.animate_menu()
+
+    def choose_avatar(self):
+        path = filedialog.askopenfilename(
+            title='Виберіть аватарку',
+            filetypes=[
+                ('Зображення', '*.png *.jpg *.jpeg *.webp'),
+                ('PNG', '*.png'),
+                ('JPEG', '*.jpg *.jpeg'),
+                ('Усі файли', '*.*')
+            ]
+        )
+
+        if not path:
+            return
+
+        try:
+            image = Image.open(path).convert('RGB')
+            image.thumbnail((80, 80))
+
+            self.avatar_image = ImageTk.PhotoImage(image)
+            self.avatar_path = path
+
+            self.avatar_preview.configure(
+                image=self.avatar_image,
+                text=''
+            )
+
+        except Exception as error:
+            self.add_message(
+                f'Не вдалося відкрити аватарку: {error}',
+                is_info=True
+            )
 
     def animate_menu(self):
         target = OPENW if self.is_menu_open else CLOSEDW
@@ -188,9 +307,17 @@ class ChatClient(CTk):
 
         step = STEP if target > current else -STEP
         self.menu_frame.configure(width=current + step)
-        self.after(8, self.animate_menu)
+        self.after(10, self.animate_menu)
 
-    # ---------- Chat rendering ----------
+    def imager(self):
+
+        global imager
+        imag = Image.open()
+
+        pass
+
+    def avatar(self):
+        pass
 
     def add_message(self, text, author=None, is_own=False, is_info=False):
         if is_info:
@@ -267,9 +394,24 @@ class ChatClient(CTk):
         Thread(target=self.receive_loop, daemon=True).start()
         self.send_line('NAME', self.username)
 
+    def send_image(self):
+        filedialog.askopenfilename(
+            title="Вибір Картинки Для Відправлення.",
+            initialdir="/",
+            filetypes=[('Зображення', '*.png *.jpg *.jpeg *.webp'),
+                ('PNG', '*.png'),
+                ('JPEG', '*.jpg *.jpeg'),
+                ('Усі файли', '*.*')
+            ]
+        )
+
+
+
+
     def send_line(self, message_type, *parts):
+        # Збирання рядка до купи ТИП@частина1@частина2
         if not self.sock:
-            self.add_message('Немає з’єднання із сервером', is_info=True)
+            self.add_message('Немає зʼєднання із сервером', is_info=True)
             return
         line = SEPAR.join((message_type,) + parts) + END
         try:
@@ -280,6 +422,7 @@ class ChatClient(CTk):
             self.add_message('З’єднання із сервером втрачено', is_info=True)
 
     def receive_loop(self):
+        # Потік який передає текст в чергу, бо іноді не все встигає обробитись перед виводом
         buffer = ''
         while True:
             try:
@@ -292,9 +435,10 @@ class ChatClient(CTk):
             while END in buffer:
                 line, buffer = buffer.split(END, 1)
                 self.inbox.put(line.strip())
-        self.inbox.put(f"INFO{SEPAR}З’єднання із сервером втрачено")
+        self.inbox.put(f"INFO{SEPAR}Зʼєднання із сервером втрачено")
 
     def process_inbox(self):
+        # Виводить все що накопилось у черзі
         while True:
             try:
                 line = self.inbox.get_nowait()
@@ -303,9 +447,11 @@ class ChatClient(CTk):
             self.handle_line(line)
         self.after(50, self.process_inbox)
 
+
     def handle_line(self, line):
         if not line:
             return
+        # maxsplit=2: сам текст може містити "@" бо розділ буде лише через пробіл + @
         parts = line.split(SEPAR, 2)
         handler = self.handlers.get(parts[0])
         if handler is None:
@@ -334,7 +480,27 @@ class ChatClient(CTk):
         if not text:
             return
         self.message_entry.delete(0, 'end')
+        # Своє повідомлення не виводить, сервер повертає його всім,
         self.send_line('TEXT', text)
+
+        def send_message(self):
+            text = self.message_entry.get().strip()
+            if not text:
+                return  # Якщо рядок порожній — нічого не робимо
+
+            # Формуємо повідомлення за вашим протоколом: TEXT@текст\n
+            message = f"TEXT{SEPAR}{text}{END}"
+
+            try:
+                if self.sock:
+                    self.sock.sendall(message.encode(ENC))
+
+                    # ВАРІАНТ А: Відображаємо повідомлення у себе ВІДРАЗУ після відправки
+                    self.add_message(f"{self.username}: {text}", is_own=True)
+
+                    self.message_entry.delete(0, 'end')  # Очищаємо поле введення
+            except Exception as e:
+                self.add_message(f"Помилка відправки: {e}", is_info=True)
 
     def save_name(self):
         new_name = self.name_entry.get().replace(SEPAR, '').strip()
