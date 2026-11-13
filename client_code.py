@@ -11,8 +11,8 @@ from customtkinter import (
     CTkScrollableFrame, CTkFont, set_appearance_mode
 )
 
-HOST = '2.tcp.eu.ngrok.io'
-PORT = 16493
+HOST = 'localhost'
+PORT = 8080
 
 USERNAME = 'Test1'
 ENC = 'utf-8'
