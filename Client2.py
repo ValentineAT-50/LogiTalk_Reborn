@@ -11,7 +11,6 @@
 
 """
 
-from datetime import datetime
 from queue import Queue, Empty
 from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread
@@ -19,7 +18,7 @@ from tkinter import filedialog
 
 from datetime import datetime
 from PIL import Image, ImageTk
-from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel,
+from customtkinter import (CTk, CTkButton, CTkEntry, CTkFrame, CTkLabel
 
 HOST = 'localhost'
 PORT = 8080
